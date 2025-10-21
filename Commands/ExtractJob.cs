@@ -186,7 +186,7 @@ namespace AWSS3Zip.Commands
             }
 
             var previousDirectory = directory;
-            directory = (node.Name != null && !directory.Contains(node.Name.Substring(0, 4))) ? $"{directory}\\{node.Name}" : $"{directory}";
+            directory = (node.Name != null && !directory.Contains(node.Name)) ? $"{directory}\\{node.Name}" : $"{directory}";
 
             if (Directory.Exists(directory))
             {
@@ -206,6 +206,11 @@ namespace AWSS3Zip.Commands
                     {
                         node = node.Parent;
                         Cleanup(ref node, true);
+                    }
+                    else if (node.Parent == null) {
+                        node.Path = directory;
+                        return node;
+
                     }
                 }
                 return BuildDirectoryStructure(directory, node.Inside, first);
@@ -294,7 +299,7 @@ namespace AWSS3Zip.Commands
                 node.Next = null;
             }
             else {
-                if (node.Inside.Type == FileType.Folder)
+                if (node.Inside.Type == FileType.Folder && node.Inside.Path != null)
                     Directory.Delete(node.Inside.Path);
                 else if (node.Inside.Type == FileType.Text)
                     File.Delete(node.Inside.Path);
