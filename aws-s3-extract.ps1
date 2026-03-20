@@ -1,15 +1,15 @@
 # Define the program path
-$programPath = $PWD.Path+"\AWSS3Zip.exe"
+$programPath = $PWD.Path + "\AWSS3Zip.exe"
  
 # Define the argument to pass to the program
 $argument = ""
 
 foreach ($arg in $args) {
-    if($arg -like "*Server=*"){
-        $argument += "`"" +$arg +"`"" + " "
+    if ($arg -like "*Server=*") {
+        $argument += "`"" + $arg + "`"" + " "
         Write-Host "Arg contains server = $argument"
     }
-    else{
+    else {
         $argument += $arg + " "  # Append with a space between arguments
     }
 }

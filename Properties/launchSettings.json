@@ -2,7 +2,7 @@
   "profiles": {
     "AWSS3Zip": {
       "commandName": "Project",
-      "commandLineArgs": "-e\r\nC:\\Users\\r_khanda\\IIS_LOGS\\2021.zip\r\n-db\r\n\"Server=SQL2DEV;Database=GeoSupportDev;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;\""
+      "commandLineArgs": "-e\r\nC:\\MyFiles\\VSprojects\\AWSS3Zip\\IIS_LOGS\\aws_031926.zip\r\n-db\r\n\"Server=SQL2DEV;Database=GeoSupportDev;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;\""
     }
   }
 }

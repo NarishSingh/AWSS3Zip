@@ -40,9 +40,9 @@ Example Usage:
 ------------------------------------------------------------------------------------
   .\awss3zip -e ~path\example.zip -db  
   
-                             # Process files in the 'example.zip' folder and 
-                             # save output directory to localdb within the path of 
-                             # bin
+# Process files in the 'example.zip' folder and 
+# save output directory to localdb within the path of 
+# bin
 
 ------------------------------------------------------------------------------------
 *************************************************************************************

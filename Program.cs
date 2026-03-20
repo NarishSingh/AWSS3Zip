@@ -8,20 +8,17 @@ internal class Program
 {
     private static void Main(string[] args)
     {
-        var host = CreateHostBuilder(args).Build();
-        var service = host.Services.GetRequiredService<CommandLineRunner>();
+        IHost host = CreateHostBuilder(args).Build();
+        CommandLineRunner service = host.Services.GetRequiredService<CommandLineRunner>();
         service.Run(args);
     }
 
-    public static IHostBuilder CreateHostBuilder(string[] args) =>
-        Host.CreateDefaultBuilder(args)
-            .ConfigureServices((hostContext, services) =>
-            {
-                services.AddSingleton<ExtractJob, ExtractJob>();
-                services.AddSingleton<IProcessFactory<IProcessJob>, JobFactory>();
+    public static IHostBuilder CreateHostBuilder(string[] args) => Host.CreateDefaultBuilder(args)
+        .ConfigureServices((hostContext, svc) =>
+        {
+            svc.AddSingleton<ExtractJob, ExtractJob>();
+            svc.AddSingleton<IProcessFactory<IProcessJob>, JobFactory>();
 
-                services.AddTransient<CommandLineRunner, CommandLineRunner>();
-            });
-
-
+            svc.AddTransient<CommandLineRunner, CommandLineRunner>();
+        });
 }
