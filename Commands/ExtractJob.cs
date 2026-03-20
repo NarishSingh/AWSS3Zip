@@ -6,7 +6,6 @@ using AWSS3Zip.Service;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
-
 namespace AWSS3Zip.Commands;
 
 public class ExtractJob : IProcessJob
@@ -61,7 +60,7 @@ public class ExtractJob : IProcessJob
     {
         try
         {
-            string outputDirectory = (iOutput != -1) ? Parameters[iOutput + 1] : null;
+            string? outputDirectory = (iOutput != -1) ? Parameters[iOutput + 1] : null;
             OriginalDirectory = $"{AppDomain.CurrentDomain.BaseDirectory}output";
             string? command = $"{AppDomain.CurrentDomain.BaseDirectory}7-Zip\\7z.exe";
             string? arguments = $@"x {Parameters[iPath + 1]} -o{OriginalDirectory}";
