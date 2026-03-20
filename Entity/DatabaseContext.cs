@@ -8,15 +8,17 @@ namespace AWSS3Zip.Entity
     public class DatabaseContext : IDatabaseContext<AppDatabase>, IDisposable
     {
         public AppDatabase Database { get; set; }
-        public SQLType Type { get; set; }
+        public DB Type { get; set; }
 
         public string ConnectionString { get; set; }
 
-        string DefaultConnection = "Data Source=localdb.db";
-        private bool _disposed = false;
+        private const string DefaultConnection = "Data Source=localdb.db";
+
+        private bool _disposed;
 
 
-        public DatabaseContext AddConnection(string connectionString) {
+        public DatabaseContext AddConnection(string connectionString)
+        {
             ConnectionString = connectionString;
             return this;
         }
@@ -29,22 +31,24 @@ namespace AWSS3Zip.Entity
         {
             if (Database == null)
             {
-                var optionsBuilder = new DbContextOptionsBuilder<AppDatabase>();
-                if (!(connection??ConnectionString).IsNullOrEmpty())
+                DbContextOptionsBuilder<AppDatabase> optionsBuilder = new();
+
+                if (!(connection ?? ConnectionString).IsNullOrEmpty())
                 {
-                    optionsBuilder.EnableSensitiveDataLogging().UseSqlServer(connection?? ConnectionString);
-                    Type = SQLType.Microsoft;
+                    optionsBuilder.EnableSensitiveDataLogging().UseSqlServer(connection ?? ConnectionString);
+                    Type = DB.Microsoft;
                 }
-                else 
+                else
                 {
                     optionsBuilder.EnableSensitiveDataLogging().UseSqlite(DefaultConnection);
-                    Type = SQLType.SQLite;
+                    Type = DB.SQLite;
                 }
+
                 Database = new AppDatabase(optionsBuilder.Options);
             }
 
             return Database;
-        }                
+        }
 
         public void Dispose()
         {
@@ -54,16 +58,13 @@ namespace AWSS3Zip.Entity
 
         protected virtual void Dispose(bool disposing)
         {
-             if (_disposed)
-                    return;
+            if (_disposed)
+                return;
 
-             if (disposing)
-             {
+            if (disposing)
                 Database?.Dispose();
-             }
 
-             _disposed = true;
+            _disposed = true;
         }
-
     }
 }

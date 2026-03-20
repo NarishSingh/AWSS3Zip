@@ -1,30 +1,20 @@
 ﻿using AWSS3Zip.Commands.Contracts;
 
+namespace AWSS3Zip.Commands;
 
-namespace AWSS3Zip.Commands
+public class JobFactory(ExtractJob _extractJob) : IProcessFactory<IProcessJob>
 {
-    public class JobFactory : IProcessFactory<IProcessJob>
+    private readonly List<IProcessJob> Jobs = [];
+
+    IProcessFactory<IProcessJob> IProcessFactory<IProcessJob>.Build(string[] parameters)
     {
-        public List<IProcessJob> Jobs { get; set; }
-        private ExtractJob ExtractJob { get; set; }
+        if (parameters.Contains("-e") || parameters.Contains("--extract"))
+            Jobs.Add(_extractJob.BuildParameters(parameters));
+        else
+            Console.WriteLine("Command parameter missing. Check Options!");
 
-
-        public JobFactory( ExtractJob _extractJob ) {
-            ExtractJob = _extractJob;
-        }
-
-        IProcessFactory<IProcessJob> IProcessFactory<IProcessJob>.Build(string[] parameters)
-        {
-            Jobs = new List<IProcessJob>();
-            if (parameters.Contains("-e") || parameters.Contains("--extract")) 
-                Jobs.Add(ExtractJob.BuildParameters(parameters));
-
-
-            else Console.WriteLine("Command parameter missing. Check Options!");
-            return this;
-        }
-
-        public void Execute() => Jobs.ForEach(j => j.Execute());
-
+        return this;
     }
+
+    public void Execute() => Jobs.ForEach(j => j.Execute());
 }

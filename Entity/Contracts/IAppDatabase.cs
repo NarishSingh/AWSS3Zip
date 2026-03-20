@@ -1,19 +1,13 @@
 ﻿using AWSS3Zip.Entity.Models;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace AWSS3Zip.Entity.Contracts
+namespace AWSS3Zip.Entity.Contracts;
+
+public interface IAppDatabase
 {
-    public interface IAppDatabase
-    {
-        public DbSet<IISLogEvent> IISLogEvents { get; set; }
+    public DbSet<IISLogEvent> IISLogEvents { get; set; }
 
-        public string ConnectionString { get; set; }
-        public AppDatabase DetachEntities();
-        public void Attach_And_Save_Entities(List<IISLogEvent> newEntities);
-    }
+    public string ConnectionString { get; set; }
+    public AppDatabase DetachEntities();
+    public void Attach_And_Save_Entities(List<IISLogEvent> newEntities);
 }

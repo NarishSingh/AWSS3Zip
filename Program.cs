@@ -4,6 +4,8 @@ using AWSS3Zip.Start;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
+namespace AWSS3Zip;
+
 internal class Program
 {
     private static void Main(string[] args)

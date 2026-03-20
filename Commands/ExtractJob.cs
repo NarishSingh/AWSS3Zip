@@ -21,6 +21,7 @@ public class ExtractJob : IProcessJob
     {
         Parameters = parameters;
         EntityLogEvents = [];
+
         return this;
     }
 
@@ -79,7 +80,7 @@ public class ExtractJob : IProcessJob
 
                 context.Build(ConnectionString).Database.EnsureCreated();
                 context.Database.SaveChanges();
-                if (context.Type == SQLType.Microsoft)
+                if (context.Type == DB.Microsoft)
                 {
                     string? textSQL = File.ReadAllText($"{AppDomain.CurrentDomain.BaseDirectory}Text\\CreateTable.txt");
                     Console.WriteLine($"You may need to manually create the IISLogEvents table in the database..\nEntity Framework Cannot guarantee code first table creation on your database schema programmatically\nAttempting to run Create Script Query -- requires your account to have sufficient privilege through connections string\n\n{textSQL}");
@@ -123,12 +124,15 @@ public class ExtractJob : IProcessJob
                 {
                     if (first)
                     {
-                        node.Name = folder.Split("\\").Last().ToString();
+                        node.Name = folder.Split("\\").Last();
                         node.Path = $"{folder}";
-                        node.Type = FileType.Folder;
+                        node.Type = FileType.DIR;
 
                         first = false;
-                        node.Inside = new DirectoryNode() { Parent = node };
+                        node.Inside = new DirectoryNode
+                        { 
+                            Parent = node 
+                        };
 
                     }
                     else
@@ -155,7 +159,7 @@ public class ExtractJob : IProcessJob
                     {
                         node.Name = file.Split("\\").Last().ToString(); ;
                         node.Path = $"{file}";
-                        node.Type = node.Name.Contains('~') ? FileType.Text : FileType.Zip;
+                        node.Type = node.Name.Contains('~') ? FileType.TXT : FileType.ZIP;
 
                         first = false;
                     }
@@ -166,7 +170,7 @@ public class ExtractJob : IProcessJob
                         {
                             Previous = node,
                             Parent = node.Parent,
-                            Type = name.Contains('~') ? FileType.Text : FileType.Zip
+                            Type = name.Contains('~') ? FileType.TXT : FileType.ZIP
                         };
 
                         node = node.Next;
@@ -205,7 +209,7 @@ public class ExtractJob : IProcessJob
         {
             if (isParent && node.Inside != null)
             {
-                if (node.Inside.Type == FileType.Folder)
+                if (node.Inside.Type == FileType.DIR)
                     Directory.Delete(node.Inside.Path);
                 else
                     File.Delete(node.Inside.Path);
@@ -253,7 +257,7 @@ public class ExtractJob : IProcessJob
         }
         else
         {
-            if (node.Type.Equals(FileType.Zip))
+            if (node.Type.Equals(FileType.ZIP))
             {
                 Console.WriteLine("Unzipping contents of inner zip files...May take a while.. ");
                 string? command = $"{AppDomain.CurrentDomain.BaseDirectory}7-Zip\\7z.exe";
@@ -262,35 +266,31 @@ public class ExtractJob : IProcessJob
 
                 Console.WriteLine("Deleting previous zip file.. ");
                 File.Delete(directory);
-                node.Name += (node.Name.Contains('~')) ? "" : "~";
-                node.Path += (node.Path.Contains('~')) ? "" : "~";
-                node.Type = FileType.Text;
+                node.Name += (node.Name.Contains('~')) ? string.Empty : "~";
+                node.Path += (node.Path.Contains('~')) ? string.Empty : "~";
+                node.Type = FileType.TXT;
             }
 
-            if (node.Type.Equals(FileType.Text))
+            if (node.Type.Equals(FileType.TXT))
             {
-                var json = File.ReadAllText(node.Path);
+                string json = File.ReadAllText(node.Path);
 
                 json = json.Insert(0, "[") + "]";
                 json = json.Replace("}{", "},{");
 
                 List<IISLog>? logEventList = JsonSerializer.Deserialize<List<IISLog>>(json);
 
-                logEventList.ForEach(x =>
+                logEventList.ForEach(iisLog => EntityLogEvents.AddRange(iisLog.logEvents.Select(s => new IISLogEvent
                 {
-                    EntityLogEvents.AddRange(
-                        x.logEvents.Select(s => new IISLogEvent()
-                        {
-                            Id = s.id,
-                            MessageType = x.messageType,
-                            Owner = x.owner,
-                            LogGroup = x.logGroup,
-                            LogStream = x.logStream,
-                            SubscriptionFilters = JsonSerializer.Serialize(x.subscriptionFilters),
-                            DateTime = DateTimeOffset.FromUnixTimeMilliseconds(s.timestamp).DateTime,
-                            RequestMessage = s.message
-                        }));
-                });
+                    Id = s.id,
+                    MessageType = iisLog.messageType,
+                    Owner = iisLog.owner,
+                    LogGroup = iisLog.logGroup,
+                    LogStream = iisLog.logStream,
+                    SubscriptionFilters = JsonSerializer.Serialize(iisLog.subscriptionFilters),
+                    DateTime = DateTimeOffset.FromUnixTimeMilliseconds(s.timestamp).DateTime,
+                    RequestMessage = s.message
+                })));
 
                 if (_isDatabaseTask)
                 {
@@ -338,22 +338,23 @@ public class ExtractJob : IProcessJob
     {
         if (!isParent)
         {
-            if (node.Next.Type == FileType.Folder)
+            if (node.Next.Type == FileType.DIR)
                 Directory.Delete(node.Next.Path);
-            else if (node.Next.Type == FileType.Text)
+            else if (node.Next.Type == FileType.TXT)
                 File.Delete(node.Next.Path);
 
             node.Next = null;
         }
         else
         {
-            if (node.Inside.Type == FileType.Folder && node.Inside.Path != null)
+            if (node.Inside.Type == FileType.DIR && node.Inside.Path != null)
                 Directory.Delete(node.Inside.Path);
-            else if (node.Inside.Type == FileType.Text)
+            else if (node.Inside.Type == FileType.TXT)
                 File.Delete(node.Inside.Path);
 
             node.Inside = null;
         }
+
         return true;
     }
 }
