@@ -16,6 +16,7 @@ public class ExtractJob : IProcessJob
     public string ConnectionString { get; set; } = default!;
 
     private bool _isDatabaseTask;
+    private readonly string zipper = $"{AppDomain.CurrentDomain.BaseDirectory}7-Zip\\7z.exe";
 
     public ExtractJob BuildParameters(string[] parameters)
     {
@@ -29,6 +30,7 @@ public class ExtractJob : IProcessJob
     /// </summary>
     public void Execute()
     {
+        #region ARG PARSING
         int iPath = Array.IndexOf(Parameters, "-e");
         int dbPosition = Array.IndexOf(Parameters, "-db") + Array.IndexOf(Parameters, "--database") + 1;
 
@@ -55,6 +57,7 @@ public class ExtractJob : IProcessJob
             Console.WriteLine("Command not formatted Correctly, contains '-' or '--' followed by command variable");
             return;
         }
+        #endregion
 
         if (iPath != -1)
             ExtractZipFiles(iPath, iOutput);
@@ -66,14 +69,14 @@ public class ExtractJob : IProcessJob
     {
         try
         {
-            string? outputDirectory = (iOutput != -1) ? Parameters[iOutput + 1] : null;
             OriginalDirectory = $"{AppDomain.CurrentDomain.BaseDirectory}output";
-            string? command = $"{AppDomain.CurrentDomain.BaseDirectory}7-Zip\\7z.exe";
-            string? arguments = $@"x {Parameters[iPath + 1]} -o{OriginalDirectory}";
+            string? outputDirectory = (iOutput != -1) ? Parameters[iOutput + 1] : null;
+
+            string extractArgs = $@"x {Parameters[iPath + 1]} -o{OriginalDirectory}";
             Console.WriteLine("Please Wait!\n This Could Take a While! ....");
 
-            if (Directory.GetFileSystemEntries($"{AppDomain.CurrentDomain.BaseDirectory}output").Length == 0)
-                Processor.InvokeProcess(command, arguments);
+            if (Directory.GetFileSystemEntries(OriginalDirectory).Length == 0)
+                Processor.InvokeProcess(zipper, extractArgs);
             else
                 Console.WriteLine("Directory Exists. Skipping zip extract...");
 
@@ -135,16 +138,16 @@ public class ExtractJob : IProcessJob
 
         if (Directory.Exists(directory))
         {
-            string[] directoryFolders = Directory.GetDirectories(directory);
+            string[] dirs = Directory.GetDirectories(directory);
 
-            if (directoryFolders.Length > 0)
+            if (dirs.Length > 0)
             {
-                foreach (string folder in directoryFolders)
+                foreach (string dirPath in dirs)
                 {
                     if (first)
                     {
-                        node.Name = folder.Split("\\").Last();
-                        node.Path = $"{folder}";
+                        node.Name = GetFileName(dirPath);
+                        node.Path = dirPath;
                         node.Type = FileType.DIR;
 
                         first = false;
@@ -152,11 +155,10 @@ public class ExtractJob : IProcessJob
                         {
                             Parent = node
                         };
-
                     }
                     else
                     {
-                        node.Next = new DirectoryNode(folder.Split("\\").Last(), $"{folder}")
+                        node.Next = new DirectoryNode(GetFileName(dirPath), dirPath)
                         {
                             Previous = node,
                             Parent = node.Parent
@@ -166,26 +168,25 @@ public class ExtractJob : IProcessJob
                         {
                             Parent = node
                         };
-
                     }
                 }
             }
             else
             {
-                foreach (string file in Directory.GetFiles(directory))
+                foreach (string path in Directory.GetFiles(directory))
                 {
                     if (first)
                     {
-                        node.Name = file.Split("\\").Last();
-                        node.Path = $"{file}";
+                        node.Name = GetFileName(path);
+                        node.Path = path;
                         node.Type = node.Name.Contains('~') ? FileType.TXT : FileType.ZIP;
 
                         first = false;
                     }
                     else
                     {
-                        string? name = file.Split("\\").Last();
-                        node.Next = new DirectoryNode(name, $"{file}")
+                        string name = GetFileName(path);
+                        node.Next = new DirectoryNode(name, path)
                         {
                             Previous = node,
                             Parent = node.Parent,
@@ -220,6 +221,13 @@ public class ExtractJob : IProcessJob
             return node;
         }
     }
+
+    /// <summary>
+    /// Extract file name from its full path
+    /// </summary>
+    /// <param name="path">Full path for file</param>
+    /// <returns>Returns file name with extension</returns>
+    private static string GetFileName(string path) => path.Split("\\").Last();
 
     private DirectoryNode Unzip_File_Execute_SQL_Task_And_Recurse_Directory(string directory, DirectoryNode node, bool first, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
     {
@@ -279,9 +287,8 @@ public class ExtractJob : IProcessJob
             if (node.Type.Equals(FileType.ZIP))
             {
                 Console.WriteLine("Unzipping contents of inner zip files...May take a while.. ");
-                string? command = $"{AppDomain.CurrentDomain.BaseDirectory}7-Zip\\7z.exe";
-                string? arguments = $@"x {directory} -o{previousDirectory}";
-                Processor.InvokeProcess(command, arguments);
+                string extractArgs = $@"x {directory} -o{previousDirectory}";
+                Processor.InvokeProcess(zipper, extractArgs);
 
                 Console.WriteLine("Deleting previous zip file.. ");
                 File.Delete(directory);
@@ -325,10 +332,9 @@ public class ExtractJob : IProcessJob
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"Caught Error:\n{ex.Message}\n Retrying by Detatching Entities and saving individually modified..");
+                            Console.WriteLine($"Caught Error:\n{ex.Message}\n Retrying by Detatching Entities and saving individually modified...");
                             context.AttachSaveEntities(EntityLogEvents);
                         }
-
                     }
 
                     EntityLogEvents = [];
@@ -342,17 +348,11 @@ public class ExtractJob : IProcessJob
             directory = string.Join("\\", parts, 0, parts.Length - 1);
 
             if (node.Previous != null)
-            {
                 return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(previousDirectory, node.Previous, first, x => Cleanup(ref x));
-            }
             else if (!directory.Equals(OriginalDirectory) && node.Parent != null)
-            {
                 return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node.Parent, first, (x) => Cleanup(ref x), true);
-            }
             else
-            {
                 return node;
-            }
         }
     }
 

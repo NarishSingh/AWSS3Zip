@@ -16,7 +16,6 @@ namespace AWSS3Zip.Entity
 
         private bool _disposed;
 
-
         public DatabaseContext AddConnection(string connectionString)
         {
             ConnectionString = connectionString;
