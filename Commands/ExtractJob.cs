@@ -10,21 +10,23 @@ namespace AWSS3Zip.Commands;
 
 public class ExtractJob : IProcessJob
 {
-    public string[] Parameters { get; set; }
-    public string OriginalDirectory { get; set; }
-    public List<IISLogEvent> EntityLogEvents { get; set; }
+    public string[] Parameters { get; set; } = default!;
+    public string OriginalDirectory { get; set; } = default!;
+    public List<IISLogEvent> EntityLogEvents { get; set; } = [];
     public string ConnectionString { get; set; } = default!;
 
-    bool _isDatabaseTask;
+    private bool _isDatabaseTask;
 
     public ExtractJob BuildParameters(string[] parameters)
     {
         Parameters = parameters;
-        EntityLogEvents = [];
 
         return this;
     }
 
+    /// <summary>
+    /// NOTE: This was the only implementation of execute
+    /// </summary>
     public void Execute()
     {
         int iPath = Array.IndexOf(Parameters, "-e");
@@ -35,7 +37,8 @@ public class ExtractJob : IProcessJob
         if (_isDatabaseTask && Parameters.Length > dbPosition + 1 && Parameters[dbPosition + 1].Contains("Server="))
             ConnectionString = Parameters[dbPosition + 1];
 
-        if (iPath == -1) Array.IndexOf(Parameters, "--extract");
+        if (iPath == -1)
+            Array.IndexOf(Parameters, "--extract");
 
         if (iPath != -1 && (Parameters[iPath + 1].Contains('-') || Parameters[iPath + 1].Contains("--")))
         {
@@ -44,7 +47,9 @@ public class ExtractJob : IProcessJob
         }
 
         int iOutput = Array.IndexOf(Parameters, "-o");
-        if (iOutput == -1) Array.IndexOf(Parameters, "--output");
+        if (iOutput == -1)
+            Array.IndexOf(Parameters, "--output");
+
         if (iOutput != -1 && (Parameters[iOutput + 1].Contains('-') || Parameters[iOutput + 1].Contains("--")))
         {
             Console.WriteLine("Command not formatted Correctly, contains '-' or '--' followed by command variable");
@@ -53,8 +58,8 @@ public class ExtractJob : IProcessJob
 
         if (iPath != -1)
             ExtractZipFiles(iPath, iOutput);
-
-        else Console.WriteLine("no execution command found!");
+        else
+            Console.WriteLine("no execution command found!");
     }
 
     private void ExtractZipFiles(int iPath, int iOutput = -1)
@@ -80,14 +85,28 @@ public class ExtractJob : IProcessJob
 
                 context.Build(ConnectionString).Database.EnsureCreated();
                 context.Database.SaveChanges();
+
                 if (context.Type == DB.Microsoft)
                 {
-                    string? textSQL = File.ReadAllText($"{AppDomain.CurrentDomain.BaseDirectory}Text\\CreateTable.txt");
-                    Console.WriteLine($"You may need to manually create the IISLogEvents table in the database..\nEntity Framework Cannot guarantee code first table creation on your database schema programmatically\nAttempting to run Create Script Query -- requires your account to have sufficient privilege through connections string\n\n{textSQL}");
+                    const string sql = """
+                        CREATE TABLE IISLogEvents (
+                            RowId INT Identity(1,1) PRIMARY KEY,
+                            Id NVARCHAR(100) NULL,
+                            MessageType NVARCHAR(100) NULL,
+                            "Owner" NVARCHAR(50) NULL,
+                            LogGroup NVARCHAR(50) NULL,
+                            LogStream NVARCHAR(50) NULL,
+                            SubscriptionFilters NVARCHAR(50) NULL,
+                            "DateTime" DATETIME NULL,
+                            RequestMessage NVARCHAR(MAX) NULL
+                        );
+                    """;
+
+                    Console.WriteLine($"You may need to manually create the IISLogEvents table in the database..\nEntity Framework Cannot guarantee code first table creation on your database schema programmatically\nAttempting to run Create Script Query -- requires your account to have sufficient privilege through connections string\n\n{sql}");
 
                     try
                     {
-                        context.Database.Database.ExecuteSqlRaw(textSQL);
+                        context.Database.Database.ExecuteSqlRaw(sql); // FIXME turn this into a sql cmd type
                     }
                     catch (Exception e)
                     {
@@ -130,8 +149,8 @@ public class ExtractJob : IProcessJob
 
                         first = false;
                         node.Inside = new DirectoryNode
-                        { 
-                            Parent = node 
+                        {
+                            Parent = node
                         };
 
                     }
@@ -157,7 +176,7 @@ public class ExtractJob : IProcessJob
                 {
                     if (first)
                     {
-                        node.Name = file.Split("\\").Last().ToString(); ;
+                        node.Name = file.Split("\\").Last();
                         node.Path = $"{file}";
                         node.Type = node.Name.Contains('~') ? FileType.TXT : FileType.ZIP;
 
@@ -165,7 +184,7 @@ public class ExtractJob : IProcessJob
                     }
                     else
                     {
-                        string? name = file.Split("\\").Last().ToString();
+                        string? name = file.Split("\\").Last();
                         node.Next = new DirectoryNode(name, $"{file}")
                         {
                             Previous = node,
@@ -248,8 +267,8 @@ public class ExtractJob : IProcessJob
                 else if (node.Parent == null)
                 {
                     node.Path = directory;
-                    return node;
 
+                    return node;
                 }
             }
 
@@ -273,8 +292,10 @@ public class ExtractJob : IProcessJob
 
             if (node.Type.Equals(FileType.TXT))
             {
+                #region DESERIALIZATION
                 string json = File.ReadAllText(node.Path);
 
+                // normalize to JSON structure?
                 json = json.Insert(0, "[") + "]";
                 json = json.Replace("}{", "},{");
 
@@ -291,6 +312,7 @@ public class ExtractJob : IProcessJob
                     DateTime = DateTimeOffset.FromUnixTimeMilliseconds(s.timestamp).DateTime,
                     RequestMessage = s.message
                 })));
+                #endregion
 
                 if (_isDatabaseTask)
                 {
@@ -304,7 +326,7 @@ public class ExtractJob : IProcessJob
                         catch (Exception ex)
                         {
                             Console.WriteLine($"Caught Error:\n{ex.Message}\n Retrying by Detatching Entities and saving individually modified..");
-                            context.Attach_And_Save_Entities(EntityLogEvents);
+                            context.AttachSaveEntities(EntityLogEvents);
                         }
 
                     }

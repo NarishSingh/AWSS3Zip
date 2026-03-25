@@ -72,9 +72,6 @@
     <None Update="aws-s3-extract.ps1">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="Text\CreateTable.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
     <None Update="Text\Welcome.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

@@ -26,7 +26,7 @@ namespace AWSS3Zip.Entity
             return this;
         }
 
-        public void Attach_And_Save_Entities(List<IISLogEvent> newEntities)
+        public void AttachSaveEntities(List<IISLogEvent> newEntities)
         {
             int rowCount = int.Parse(IISLogEvents.Max(e => e.Id));
             foreach (IISLogEvent entity in newEntities)
