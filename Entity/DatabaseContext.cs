@@ -10,36 +10,24 @@ namespace AWSS3Zip.Entity
         public AppDatabase Database { get; set; }
         public DB Type { get; set; }
 
-        public string ConnectionString { get; set; }
-
-        private const string DefaultConnection = "Data Source=localdb.db";
+        private const string _defaultLocalDb = "Data Source=localdb.db";
 
         private bool _disposed;
 
-        public DatabaseContext AddConnection(string connectionString)
-        {
-            ConnectionString = connectionString;
-            return this;
-        }
-        public AppDatabase Build(string connect) => BuildDatabase(connect);
-
-        public AppDatabase Detach() => Database.DetachEntities();
-
-
-        private AppDatabase BuildDatabase(string connection = null)
+        public AppDatabase Build(string connection)
         {
             if (Database == null)
             {
                 DbContextOptionsBuilder<AppDatabase> optionsBuilder = new();
 
-                if (!(connection ?? ConnectionString).IsNullOrEmpty())
+                if (!connection.IsNullOrEmpty())
                 {
-                    optionsBuilder.EnableSensitiveDataLogging().UseSqlServer(connection ?? ConnectionString);
+                    optionsBuilder.EnableSensitiveDataLogging().UseSqlServer(connection);
                     Type = DB.Microsoft;
                 }
                 else
                 {
-                    optionsBuilder.EnableSensitiveDataLogging().UseSqlite(DefaultConnection);
+                    optionsBuilder.EnableSensitiveDataLogging().UseSqlite(_defaultLocalDb);
                     Type = DB.SQLite;
                 }
 
@@ -49,6 +37,9 @@ namespace AWSS3Zip.Entity
             return Database;
         }
 
+        public AppDatabase Detach() => Database.DetachEntities();
+
+        #region DISPOSAL PATTERN
         public void Dispose()
         {
             Dispose(true);
@@ -65,5 +56,6 @@ namespace AWSS3Zip.Entity
 
             _disposed = true;
         }
+        #endregion
     }
 }

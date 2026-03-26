@@ -16,7 +16,7 @@ public class ExtractJob : IProcessJob
     public string ConnectionString { get; set; } = default!;
 
     private bool _isDatabaseTask;
-    private readonly string zipper = $"{AppDomain.CurrentDomain.BaseDirectory}7-Zip\\7z.exe";
+    private readonly string _zipper = $"{AppDomain.CurrentDomain.BaseDirectory}7-Zip\\7z.exe";
 
     public ExtractJob BuildParameters(string[] parameters)
     {
@@ -73,10 +73,10 @@ public class ExtractJob : IProcessJob
             string? outputDirectory = (iOutput != -1) ? Parameters[iOutput + 1] : null;
 
             string extractArgs = $@"x {Parameters[iPath + 1]} -o{OriginalDirectory}";
-            Console.WriteLine("Please Wait!\n This Could Take a While! ....");
+            Console.WriteLine("Please Wait!\n This Could Take a While! ...");
 
             if (Directory.GetFileSystemEntries(OriginalDirectory).Length == 0)
-                Processor.InvokeProcess(zipper, extractArgs);
+                Processor.InvokeProcess(_zipper, extractArgs);
             else
                 Console.WriteLine("Directory Exists. Skipping zip extract...");
 
@@ -113,14 +113,14 @@ public class ExtractJob : IProcessJob
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine($"Execute raw sql failed with message.. {e.Message}\n\n Table may exist.. Continuing process..");
+                        Console.WriteLine($"Execute raw sql failed with message.. {e.Message}\n\n Table may exist... Continuing process...");
                     }
 
                 }
             }
 
             DirectoryNode root = BuildDirectoryStructure(OriginalDirectory);
-            Console.WriteLine($"Deleting Root Directory.. Finishing Job {root.Path}");
+            Console.WriteLine($"Deleting Root Directory... Finishing Job {root.Path}");
             Directory.Delete(root.Path);
 
             if (outputDirectory != null)
@@ -205,21 +205,14 @@ public class ExtractJob : IProcessJob
             first = true;
 
             return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node, first);
-
         }
 
         if (node.Previous != null)
-        {
             return BuildDirectoryStructure(node.Previous.Path, node.Previous, first);
-        }
         else if (node.Parent != null)
-        {
             return BuildDirectoryStructure(node.Parent.Path, node.Parent, first);
-        }
         else
-        {
             return node;
-        }
     }
 
     /// <summary>
@@ -251,7 +244,7 @@ public class ExtractJob : IProcessJob
         }
 
         string? previousDirectory = directory;
-        directory = (node.Name != null && !directory.Contains(node.Name)) ? $"{directory}\\{node.Name}" : $"{directory}";
+        directory = (node.Name != null && !directory.Contains(node.Name)) ? $"{directory}\\{node.Name}" : directory;
 
         if (Directory.Exists(directory))
         {
@@ -288,7 +281,7 @@ public class ExtractJob : IProcessJob
             {
                 Console.WriteLine("Unzipping contents of inner zip files...May take a while.. ");
                 string extractArgs = $@"x {directory} -o{previousDirectory}";
-                Processor.InvokeProcess(zipper, extractArgs);
+                Processor.InvokeProcess(_zipper, extractArgs);
 
                 Console.WriteLine("Deleting previous zip file.. ");
                 File.Delete(directory);
