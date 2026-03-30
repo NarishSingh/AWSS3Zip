@@ -4,6 +4,7 @@ using AWSS3Zip.Entity.Models;
 using AWSS3Zip.Models;
 using AWSS3Zip.Service;
 using Microsoft.EntityFrameworkCore;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace AWSS3Zip.Commands;
@@ -11,12 +12,12 @@ namespace AWSS3Zip.Commands;
 public class ExtractJob : IProcessJob
 {
     public string[] Parameters { get; set; } = default!;
-    public string OriginalDirectory { get; set; } = default!;
+    public string TempDir { get; set; } = default!;
     public List<IISLogEvent> EntityLogEvents { get; set; } = [];
     public string ConnectionString { get; set; } = default!;
 
     private bool _isDatabaseTask;
-    private readonly string _zipper = $"{AppDomain.CurrentDomain.BaseDirectory}7-Zip\\7z.exe";
+    private readonly string _zipper = $"{AppContext.BaseDirectory}7-Zip\\7z.exe";
 
     public ExtractJob BuildParameters(string[] parameters)
     {
@@ -60,28 +61,33 @@ public class ExtractJob : IProcessJob
         #endregion
 
         if (iPath != -1)
-            ExtractZipFiles(iPath, iOutput);
+            ExtractZipFilesAndProcess(iPath, iOutput);
         else
             Console.WriteLine("no execution command found!");
     }
 
-    private void ExtractZipFiles(int iPath, int iOutput = -1)
+    private void ExtractZipFilesAndProcess(int iPath, int iOutput = -1)
     {
         try
         {
-            OriginalDirectory = $"{AppDomain.CurrentDomain.BaseDirectory}output";
-            string? outputDirectory = (iOutput != -1) ? Parameters[iOutput + 1] : null;
+            TempDir = $"{AppContext.BaseDirectory}output";
+            string? outputDirectory = iOutput != -1 ? Parameters[iOutput + 1] : null;
 
-            string extractArgs = $@"x {Parameters[iPath + 1]} -o{OriginalDirectory}";
-            Console.WriteLine("Please Wait!\n This Could Take a While! ...");
+            string extractCmdArgs = $@"x {Parameters[iPath + 1]} -o{TempDir}";
 
-            if (Directory.GetFileSystemEntries(OriginalDirectory).Length == 0)
-                Processor.InvokeProcess(_zipper, extractArgs);
+            if (Directory.GetFileSystemEntries(TempDir).Length == 0)
+            {
+                Processor.InvokeProcess(_zipper, extractCmdArgs);
+                Console.WriteLine($"\n Files Extracted: {TempDir}");
+            }
             else
-                Console.WriteLine("Directory Exists. Skipping zip extract...");
+            {
+                Console.WriteLine("Temp dir is not empty. Skipping extract...");
+            }
 
-            Console.WriteLine($"\n Files Extracted: {OriginalDirectory}\n Creating Database and building directory structure...");
+            Console.WriteLine("\n Creating Database and building directory structure...");
 
+            // DEFINE TABLE IF OUTPUT TO DB
             if (_isDatabaseTask)
             {
                 using DatabaseContext? context = new();
@@ -105,11 +111,15 @@ public class ExtractJob : IProcessJob
                         );
                     """;
 
-                    Console.WriteLine($"You may need to manually create the IISLogEvents table in the database..\nEntity Framework Cannot guarantee code first table creation on your database schema programmatically\nAttempting to run Create Script Query -- requires your account to have sufficient privilege through connections string\n\n{sql}");
+                    Console.WriteLine("You may need to manually create the IISLogEvents table in the database..\n" +
+                        "Entity Framework Cannot guarantee code first table creation on your database schema programmatically\n" +
+                        "Attempting to run Create Script Query -- requires your account to have sufficient privilege through connections string\n\n"
+                    );
 
                     try
                     {
-                        context.Database.Database.ExecuteSqlRaw(sql); // FIXME turn this into a sql cmd type
+                        //context.Database.Database.ExecuteSqlRaw(sql); // FIXME turn this into a sql cmd type
+                        context.Database.Database.ExecuteSql(FormattableStringFactory.Create(sql));
                     }
                     catch (Exception e)
                     {
@@ -119,12 +129,16 @@ public class ExtractJob : IProcessJob
                 }
             }
 
-            DirectoryNode root = BuildDirectoryStructure(OriginalDirectory);
+            // EXTRACT
+            DirectoryNode root = ProcessJob(TempDir);
             Console.WriteLine($"Deleting Root Directory... Finishing Job {root.Path}");
-            Directory.Delete(root.Path);
+            if (Directory.Exists(root.Path))
+                Directory.Delete(root.Path);
+            else if (File.Exists(root.Path))
+                File.Delete(root.Path);
 
             if (outputDirectory != null)
-                File.Move($"{AppDomain.CurrentDomain.BaseDirectory}localdb", outputDirectory);
+                File.Move($"{AppContext.BaseDirectory}localdb", outputDirectory);
         }
         catch (Exception e)
         {
@@ -132,25 +146,33 @@ public class ExtractJob : IProcessJob
         }
     }
 
-    private DirectoryNode BuildDirectoryStructure(string directory, DirectoryNode node = null, bool first = true)
+    /// <summary>
+    /// Recursive job loop
+    /// </summary>
+    /// <param name="directory">Current directory level to traverse</param>
+    /// <param name="node">Current item node being recursively operated on</param>
+    /// <param name="head">boolean for indicating if `node` is the head of tree or not</param>
+    /// <returns></returns>
+    private DirectoryNode ProcessJob(string directory, DirectoryNode node = default!, bool head = true)
     {
         node ??= new DirectoryNode();
 
         if (Directory.Exists(directory))
         {
+            #region MAP THE DIR TREE
             string[] dirs = Directory.GetDirectories(directory);
 
             if (dirs.Length > 0)
             {
                 foreach (string dirPath in dirs)
                 {
-                    if (first)
+                    if (head)
                     {
                         node.Name = GetFileName(dirPath);
                         node.Path = dirPath;
                         node.Type = FileType.DIR;
 
-                        first = false;
+                        head = false;
                         node.Inside = new DirectoryNode
                         {
                             Parent = node
@@ -173,20 +195,20 @@ public class ExtractJob : IProcessJob
             }
             else
             {
-                foreach (string path in Directory.GetFiles(directory))
+                foreach (string filePath in Directory.GetFiles(directory))
                 {
-                    if (first)
+                    if (head)
                     {
-                        node.Name = GetFileName(path);
-                        node.Path = path;
+                        node.Name = GetFileName(filePath);
+                        node.Path = filePath;
                         node.Type = node.Name.Contains('~') ? FileType.TXT : FileType.ZIP;
 
-                        first = false;
+                        head = false;
                     }
                     else
                     {
-                        string name = GetFileName(path);
-                        node.Next = new DirectoryNode(name, path)
+                        string name = GetFileName(filePath);
+                        node.Next = new DirectoryNode(name, filePath)
                         {
                             Previous = node,
                             Parent = node.Parent,
@@ -202,15 +224,16 @@ public class ExtractJob : IProcessJob
                 }
             }
 
-            first = true;
+            head = true;
+            #endregion
 
-            return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node, first);
+            return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node, head);
         }
 
         if (node.Previous != null)
-            return BuildDirectoryStructure(node.Previous.Path, node.Previous, first);
+            return ProcessJob(node.Previous.Path, node.Previous, head);
         else if (node.Parent != null)
-            return BuildDirectoryStructure(node.Parent.Path, node.Parent, first);
+            return ProcessJob(node.Parent.Path, node.Parent, head);
         else
             return node;
     }
@@ -222,9 +245,8 @@ public class ExtractJob : IProcessJob
     /// <returns>Returns file name with extension</returns>
     private static string GetFileName(string path) => path.Split("\\").Last();
 
-    private DirectoryNode Unzip_File_Execute_SQL_Task_And_Recurse_Directory(string directory, DirectoryNode node, bool first, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
+    private DirectoryNode Unzip_File_Execute_SQL_Task_And_Recurse_Directory(string currentDir, DirectoryNode node, bool first, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
     {
-        Console.Clear();
         if (cleanupNode != null)
         {
             if (isParent && node.Inside != null)
@@ -239,26 +261,28 @@ public class ExtractJob : IProcessJob
                 cleanupNode(node);
 
                 if (node.Previous == null)
-                    Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node, first);
+                    Unzip_File_Execute_SQL_Task_And_Recurse_Directory(currentDir, node, first);
             }
         }
 
-        string? previousDirectory = directory;
-        directory = (node.Name != null && !directory.Contains(node.Name)) ? $"{directory}\\{node.Name}" : directory;
+        string? previousDirectory = currentDir;
+        currentDir = node.Name != null && !currentDir.Contains(node.Name)
+            ? $"{currentDir}\\{node.Name}"
+            : currentDir;
 
-        if (Directory.Exists(directory))
+        if (Directory.Exists(currentDir))
         {
-            if (Directory.GetFileSystemEntries(directory).Length == 0)
+            if (Directory.GetFileSystemEntries(currentDir).Length == 0)
             {
-                if (node.Previous != null && node.Path.Equals(directory))
+                if (node.Previous != null && node.Path.Equals(currentDir))
                 {
                     node = node.Previous;
                     Cleanup(ref node);
                 }
-                else if (node.Previous != null && !node.Path.Equals(directory))
+                else if (node.Previous != null && !node.Path.Equals(currentDir))
                 {
-                    Directory.Delete(directory);
-                    directory = node.Path;
+                    Directory.Delete(currentDir);
+                    currentDir = node.Path;
                 }
                 else if (node.Parent != null)
                 {
@@ -267,26 +291,26 @@ public class ExtractJob : IProcessJob
                 }
                 else if (node.Parent == null)
                 {
-                    node.Path = directory;
+                    node.Path = currentDir;
 
                     return node;
                 }
             }
 
-            return BuildDirectoryStructure(directory, node.Inside, first);
+            return ProcessJob(currentDir, node.Inside, first);
         }
         else
         {
             if (node.Type.Equals(FileType.ZIP))
             {
                 Console.WriteLine("Unzipping contents of inner zip files...May take a while.. ");
-                string extractArgs = $@"x {directory} -o{previousDirectory}";
-                Processor.InvokeProcess(_zipper, extractArgs);
+                string extractCmdArgs = $@"x {currentDir} -o{previousDirectory}";
+                Processor.InvokeProcess(_zipper, extractCmdArgs);
 
                 Console.WriteLine("Deleting previous zip file.. ");
-                File.Delete(directory);
-                node.Name += (node.Name.Contains('~')) ? string.Empty : "~";
-                node.Path += (node.Path.Contains('~')) ? string.Empty : "~";
+                File.Delete(currentDir);
+                node.Name += (node.Name.Contains('~')) ? string.Empty : '~';
+                node.Path += (node.Path.Contains('~')) ? string.Empty : '~';
                 node.Type = FileType.TXT;
             }
 
@@ -338,12 +362,12 @@ public class ExtractJob : IProcessJob
 
             node.Inside = null;
             string[] parts = previousDirectory.Split("\\");
-            directory = string.Join("\\", parts, 0, parts.Length - 1);
+            currentDir = string.Join("\\", parts, 0, parts.Length - 1);
 
             if (node.Previous != null)
                 return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(previousDirectory, node.Previous, first, x => Cleanup(ref x));
-            else if (!directory.Equals(OriginalDirectory) && node.Parent != null)
-                return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node.Parent, first, (x) => Cleanup(ref x), true);
+            else if (!currentDir.Equals(TempDir) && node.Parent != null)
+                return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(currentDir, node.Parent, first, (x) => Cleanup(ref x), true);
             else
                 return node;
         }

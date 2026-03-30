@@ -1,7 +1,6 @@
 ﻿using AWSS3Zip.Entity.Contracts;
 using AWSS3Zip.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 
 namespace AWSS3Zip.Entity
 {
@@ -10,7 +9,7 @@ namespace AWSS3Zip.Entity
         public AppDatabase Database { get; set; }
         public DB Type { get; set; }
 
-        private const string _defaultLocalDb = "Data Source=localdb.db";
+        private const string _defaultDb = "Data Source=localdb.db";
 
         private bool _disposed;
 
@@ -20,15 +19,15 @@ namespace AWSS3Zip.Entity
             {
                 DbContextOptionsBuilder<AppDatabase> optionsBuilder = new();
 
-                if (!connection.IsNullOrEmpty())
+                if (string.IsNullOrEmpty(connection))
                 {
-                    optionsBuilder.EnableSensitiveDataLogging().UseSqlServer(connection);
-                    Type = DB.Microsoft;
+                    optionsBuilder.EnableSensitiveDataLogging().UseSqlite(_defaultDb);
+                    Type = DB.SQLite;
                 }
                 else
                 {
-                    optionsBuilder.EnableSensitiveDataLogging().UseSqlite(_defaultLocalDb);
-                    Type = DB.SQLite;
+                    optionsBuilder.EnableSensitiveDataLogging().UseSqlServer(connection);
+                    Type = DB.Microsoft;
                 }
 
                 Database = new AppDatabase(optionsBuilder.Options);
