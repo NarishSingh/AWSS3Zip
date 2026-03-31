@@ -3,6 +3,9 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AWSS3Zip.Entity.Models;
 
+/// <summary>
+/// Entity - flattens a LogEvent request record with its parent IIS log record
+/// </summary>
 public class IISLogEvent
 {
     [Key]

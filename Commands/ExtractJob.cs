@@ -13,7 +13,6 @@ public class ExtractJob : IProcessJob
 {
     public string[] Parameters { get; set; } = default!;
     public string TempDir { get; set; } = default!;
-    public List<IISLogEvent> EntityLogEvents { get; set; } = [];
     public string ConnectionString { get; set; } = default!;
 
     private bool _isDatabaseTask;
@@ -125,7 +124,6 @@ public class ExtractJob : IProcessJob
                     {
                         Console.WriteLine($"Execute raw sql failed with message.. {e.Message}\n\n Table may exist... Continuing process...");
                     }
-
                 }
             }
 
@@ -301,21 +299,24 @@ public class ExtractJob : IProcessJob
         }
         else
         {
+            // Extract if current item is a zip
             if (node.Type.Equals(FileType.ZIP))
             {
-                Console.WriteLine("Unzipping contents of inner zip files...May take a while.. ");
+                Console.WriteLine("Unzipping contents of inner zip files...May take a while... ");
                 string extractCmdArgs = $@"x {currentDir} -o{previousDirectory}";
                 Processor.InvokeProcess(_zipper, extractCmdArgs);
 
                 Console.WriteLine("Deleting previous zip file.. ");
                 File.Delete(currentDir);
-                node.Name += (node.Name.Contains('~')) ? string.Empty : '~';
-                node.Path += (node.Path.Contains('~')) ? string.Empty : '~';
+                node.Name += node.Name.Contains('~') ? string.Empty : '~';
+                node.Path += node.Path.Contains('~') ? string.Empty : '~';
                 node.Type = FileType.TXT;
             }
 
             if (node.Type.Equals(FileType.TXT))
             {
+                // FIXME find an example of aws log
+
                 #region DESERIALIZATION
                 string json = File.ReadAllText(node.Path);
 
@@ -323,9 +324,19 @@ public class ExtractJob : IProcessJob
                 json = json.Insert(0, "[") + "]";
                 json = json.Replace("}{", "},{");
 
-                List<IISLog>? logEventList = JsonSerializer.Deserialize<List<IISLog>>(json);
 
-                logEventList.ForEach(iisLog => EntityLogEvents.AddRange(iisLog.logEvents.Select(s => new IISLogEvent
+                /**
+                 * 1 file =>
+                 * List of `IISLog` -> 
+                 * Each log record contains a list of `LogEvent` which will contain the request
+                 * 
+                 * IISLogEvent -> view model entity
+                 */
+                List<IISLog>? logEventList = JsonSerializer.Deserialize<List<IISLog>>(json);
+                List<IISLogEvent> entities = [];
+
+                // FIXME null safety
+                logEventList.ForEach(iisLog => entities.AddRange(iisLog.logEvents.Select(s => new IISLogEvent
                 {
                     Id = s.id,
                     MessageType = iisLog.messageType,
@@ -344,17 +355,17 @@ public class ExtractJob : IProcessJob
                     {
                         try
                         {
-                            context.IISLogEvents.AddRange(EntityLogEvents);
+                            context.IISLogEvents.AddRange(entities);
                             context.SaveChanges();
                         }
                         catch (Exception ex)
                         {
                             Console.WriteLine($"Caught Error:\n{ex.Message}\n Retrying by Detatching Entities and saving individually modified...");
-                            context.AttachSaveEntities(EntityLogEvents);
+                            context.AttachSaveEntities(entities);
                         }
                     }
 
-                    EntityLogEvents = [];
+                    entities = [];
 
                     Console.WriteLine("Changes Saved to SQLite DB! \nYou can use Query Syntax -SQL to query data\nYou can take the local.db file and upload into SQLite db browser or MS Access");
                 }
