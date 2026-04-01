@@ -6,12 +6,15 @@ namespace AWSS3Zip.Entity.Models;
 /// <summary>
 /// Entity - flattens a LogEvent request record with its parent IIS log record
 /// </summary>
-public class IISLogEvent
+/// <param name="id">LogEvent ID</param>
+public class IISLogEvent(string id)
 {
+    public readonly string Id = id;
+
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int RowId { get; set; }
-    public string Id { get; set; }
+
     public string? MessageType { get; set; }
     public string? Owner { get; set; }
     public string? LogGroup { get; set; }

@@ -15,7 +15,6 @@ public class ExtractJob : IProcessJob
     public string TempDir { get; set; } = default!;
     public string ConnectionString { get; set; } = default!;
 
-    private bool _isDatabaseTask;
     private readonly string _zipper = $"{AppContext.BaseDirectory}7-Zip\\7z.exe";
 
     public ExtractJob BuildParameters(string[] parameters)
@@ -34,9 +33,9 @@ public class ExtractJob : IProcessJob
         int iPath = Array.IndexOf(Parameters, "-e");
         int dbPosition = Array.IndexOf(Parameters, "-db") + Array.IndexOf(Parameters, "--database") + 1;
 
-        _isDatabaseTask = dbPosition >= 0;
+        bool isDbTask = dbPosition >= 0;
 
-        if (_isDatabaseTask && Parameters.Length > dbPosition + 1 && Parameters[dbPosition + 1].Contains("Server="))
+        if (isDbTask && Parameters.Length > dbPosition + 1 && Parameters[dbPosition + 1].Contains("Server="))
             ConnectionString = Parameters[dbPosition + 1];
 
         if (iPath == -1)
@@ -60,12 +59,12 @@ public class ExtractJob : IProcessJob
         #endregion
 
         if (iPath != -1)
-            ExtractZipFilesAndProcess(iPath, iOutput);
+            ExtractZipFilesAndProcess(iPath, isDbTask, iOutput);
         else
             Console.WriteLine("no execution command found!");
     }
 
-    private void ExtractZipFilesAndProcess(int iPath, int iOutput = -1)
+    private void ExtractZipFilesAndProcess(int iPath, bool isDbTask, int iOutput = -1)
     {
         try
         {
@@ -87,7 +86,7 @@ public class ExtractJob : IProcessJob
             Console.WriteLine("\n Creating Database and building directory structure...");
 
             // DEFINE TABLE IF OUTPUT TO DB
-            if (_isDatabaseTask)
+            if (isDbTask)
             {
                 using DatabaseContext? context = new();
 
@@ -128,7 +127,7 @@ public class ExtractJob : IProcessJob
             }
 
             // EXTRACT
-            DirectoryNode root = ProcessJob(TempDir);
+            DirectoryNode root = ProcessJob(TempDir, isDbTask);
             Console.WriteLine($"Deleting Root Directory... Finishing Job {root.Path}");
             if (Directory.Exists(root.Path))
                 Directory.Delete(root.Path);
@@ -144,14 +143,7 @@ public class ExtractJob : IProcessJob
         }
     }
 
-    /// <summary>
-    /// Recursive job loop
-    /// </summary>
-    /// <param name="directory">Current directory level to traverse</param>
-    /// <param name="node">Current item node being recursively operated on</param>
-    /// <param name="head">boolean for indicating if `node` is the head of tree or not</param>
-    /// <returns></returns>
-    private DirectoryNode ProcessJob(string directory, DirectoryNode node = default!, bool head = true)
+    private DirectoryNode ProcessJob(string directory, bool isDbTask, DirectoryNode node = default!, bool isHead = true)
     {
         node ??= new DirectoryNode();
 
@@ -164,13 +156,13 @@ public class ExtractJob : IProcessJob
             {
                 foreach (string dirPath in dirs)
                 {
-                    if (head)
+                    if (isHead)
                     {
                         node.Name = GetFileName(dirPath);
                         node.Path = dirPath;
                         node.Type = FileType.DIR;
 
-                        head = false;
+                        isHead = false;
                         node.Inside = new DirectoryNode
                         {
                             Parent = node
@@ -195,13 +187,13 @@ public class ExtractJob : IProcessJob
             {
                 foreach (string filePath in Directory.GetFiles(directory))
                 {
-                    if (head)
+                    if (isHead)
                     {
                         node.Name = GetFileName(filePath);
                         node.Path = filePath;
                         node.Type = node.Name.Contains('~') ? FileType.TXT : FileType.ZIP;
 
-                        head = false;
+                        isHead = false;
                     }
                     else
                     {
@@ -222,16 +214,16 @@ public class ExtractJob : IProcessJob
                 }
             }
 
-            head = true;
+            isHead = true;
             #endregion
 
-            return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node, head);
+            return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node, isHead, isDbTask);
         }
 
         if (node.Previous != null)
-            return ProcessJob(node.Previous.Path, node.Previous, head);
+            return ProcessJob(node.Previous.Path, isDbTask, node.Previous, isHead);
         else if (node.Parent != null)
-            return ProcessJob(node.Parent.Path, node.Parent, head);
+            return ProcessJob(node.Parent.Path, isDbTask, node.Parent, isHead);
         else
             return node;
     }
@@ -243,7 +235,7 @@ public class ExtractJob : IProcessJob
     /// <returns>Returns file name with extension</returns>
     private static string GetFileName(string path) => path.Split("\\").Last();
 
-    private DirectoryNode Unzip_File_Execute_SQL_Task_And_Recurse_Directory(string currentDir, DirectoryNode node, bool first, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
+    private DirectoryNode Unzip_File_Execute_SQL_Task_And_Recurse_Directory(string currentDir, DirectoryNode node, bool isHead, bool isDbTask, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
     {
         if (cleanupNode != null)
         {
@@ -259,7 +251,7 @@ public class ExtractJob : IProcessJob
                 cleanupNode(node);
 
                 if (node.Previous == null)
-                    Unzip_File_Execute_SQL_Task_And_Recurse_Directory(currentDir, node, first);
+                    Unzip_File_Execute_SQL_Task_And_Recurse_Directory(currentDir, node, isHead, isDbTask);
             }
         }
 
@@ -295,7 +287,7 @@ public class ExtractJob : IProcessJob
                 }
             }
 
-            return ProcessJob(currentDir, node.Inside, first);
+            return ProcessJob(currentDir, isDbTask, node.Inside, isHead);
         }
         else
         {
@@ -326,30 +318,27 @@ public class ExtractJob : IProcessJob
 
 
                 /**
-                 * 1 file =>
-                 * List of `IISLog` -> 
-                 * Each log record contains a list of `LogEvent` which will contain the request
-                 * 
-                 * IISLogEvent -> view model entity
+                 * 1 file => List of `IISLog`
+                 * -> Each log record contains a list of `LogEvent` which will contain the request
                  */
-                List<IISLog>? logEventList = JsonSerializer.Deserialize<List<IISLog>>(json);
                 List<IISLogEvent> entities = [];
-
-                // FIXME null safety
-                logEventList.ForEach(iisLog => entities.AddRange(iisLog.logEvents.Select(s => new IISLogEvent
+                foreach (IISLog log in JsonSerializer.Deserialize<List<IISLog>>(json))
                 {
-                    Id = s.id,
-                    MessageType = iisLog.messageType,
-                    Owner = iisLog.owner,
-                    LogGroup = iisLog.logGroup,
-                    LogStream = iisLog.logStream,
-                    SubscriptionFilters = JsonSerializer.Serialize(iisLog.subscriptionFilters),
-                    DateTime = DateTimeOffset.FromUnixTimeMilliseconds(s.timestamp).DateTime,
-                    RequestMessage = s.message
-                })));
+                    // flatten the record to create entity
+                    entities.AddRange(log.logEvents.Select(s => new IISLogEvent(s.id)
+                    {
+                        MessageType = log.messageType,
+                        Owner = log.owner,
+                        LogGroup = log.logGroup,
+                        LogStream = log.logStream,
+                        SubscriptionFilters = JsonSerializer.Serialize(log.subscriptionFilters),
+                        DateTime = DateTimeOffset.FromUnixTimeMilliseconds(s.timestamp).DateTime,
+                        RequestMessage = s.message
+                    }));
+                }
                 #endregion
 
-                if (_isDatabaseTask)
+                if (isDbTask)
                 {
                     using (AppDatabase? context = new DatabaseContext().Build(ConnectionString))
                     {
@@ -376,15 +365,15 @@ public class ExtractJob : IProcessJob
             currentDir = string.Join("\\", parts, 0, parts.Length - 1);
 
             if (node.Previous != null)
-                return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(previousDirectory, node.Previous, first, x => Cleanup(ref x));
+                return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(previousDirectory, node.Previous, isHead, isDbTask, x => Cleanup(ref x));
             else if (!currentDir.Equals(TempDir) && node.Parent != null)
-                return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(currentDir, node.Parent, first, (x) => Cleanup(ref x), true);
+                return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(currentDir, node.Parent, isHead, isDbTask, (x) => Cleanup(ref x), true);
             else
                 return node;
         }
     }
 
-    private bool Cleanup(ref DirectoryNode node, bool isParent = false)
+    private static bool Cleanup(ref DirectoryNode node, bool isParent = false)
     {
         if (!isParent)
         {
