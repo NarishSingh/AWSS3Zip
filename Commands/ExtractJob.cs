@@ -61,7 +61,7 @@ public class ExtractJob : IProcessJob
         if (iPath != -1)
             ExtractZipFilesAndProcess(iPath, isDbTask, iOutput);
         else
-            Console.WriteLine("no execution command found!");
+            Console.WriteLine("No execution command found!");
     }
 
     private void ExtractZipFilesAndProcess(int iPath, bool isDbTask, int iOutput = -1)
@@ -95,7 +95,7 @@ public class ExtractJob : IProcessJob
 
                 if (context.Type == DB.Microsoft)
                 {
-                    const string sql = """
+                    const string createTblSql = """
                         DROP TABLE IF EXISTS [IISLogEvents];
                         CREATE TABLE [IISLogEvents] (
                             RowId INT IDENTITY(1,1),
@@ -112,7 +112,7 @@ public class ExtractJob : IProcessJob
 
                     try
                     {
-                        context.Database.Database.ExecuteSql(FormattableStringFactory.Create(sql));
+                        context.Database.Database.ExecuteSql(FormattableStringFactory.Create(createTblSql));
                     }
                     catch (Exception e)
                     {

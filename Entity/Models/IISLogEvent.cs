@@ -8,12 +8,11 @@ namespace AWSS3Zip.Entity.Models;
 /// </summary>
 public class IISLogEvent
 {
-    public string Id { get; set; }
-
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int RowId { get; set; }
 
+    public string? Id { get; set; }
     public string? MessageType { get; set; }
     public string? Owner { get; set; }
     public string? LogGroup { get; set; }
