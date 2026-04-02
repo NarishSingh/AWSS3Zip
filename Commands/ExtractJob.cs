@@ -96,8 +96,9 @@ public class ExtractJob : IProcessJob
                 if (context.Type == DB.Microsoft)
                 {
                     const string sql = """
+                        DROP TABLE IF EXISTS IISLogEvents;
                         CREATE TABLE IISLogEvents (
-                            RowId INT Identity(1,1) PRIMARY KEY,
+                            RowId INT IDENTITY(1,1),
                             Id NVARCHAR(100) NULL,
                             MessageType NVARCHAR(100) NULL,
                             "Owner" NVARCHAR(50) NULL,
@@ -109,19 +110,13 @@ public class ExtractJob : IProcessJob
                         );
                     """;
 
-                    Console.WriteLine("You may need to manually create the IISLogEvents table in the database..\n" +
-                        "Entity Framework Cannot guarantee code first table creation on your database schema programmatically\n" +
-                        "Attempting to run Create Script Query -- requires your account to have sufficient privilege through connections string\n\n"
-                    );
-
                     try
                     {
-                        //context.Database.Database.ExecuteSqlRaw(sql); // FIXME turn this into a sql cmd type
                         context.Database.Database.ExecuteSql(FormattableStringFactory.Create(sql));
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine($"Execute raw sql failed with message.. {e.Message}\n\n Table may exist... Continuing process...");
+                        Console.WriteLine($"SQL Query Failed - {e.Message}\n\n");
                     }
                 }
             }
@@ -325,8 +320,9 @@ public class ExtractJob : IProcessJob
                 foreach (IISLog log in JsonSerializer.Deserialize<List<IISLog>>(json))
                 {
                     // flatten the record to create entity
-                    entities.AddRange(log.logEvents.Select(s => new IISLogEvent(s.id)
+                    entities.AddRange(log.logEvents.Select(s => new IISLogEvent
                     {
+                        Id = s.id,
                         MessageType = log.messageType,
                         Owner = log.owner,
                         LogGroup = log.logGroup,
