@@ -96,8 +96,8 @@ public class ExtractJob : IProcessJob
                 if (context.Type == DB.Microsoft)
                 {
                     const string sql = """
-                        DROP TABLE IF EXISTS IISLogEvents;
-                        CREATE TABLE IISLogEvents (
+                        DROP TABLE IF EXISTS [IISLogEvents];
+                        CREATE TABLE [IISLogEvents] (
                             RowId INT IDENTITY(1,1),
                             Id NVARCHAR(100) NULL,
                             MessageType NVARCHAR(100) NULL,
@@ -122,8 +122,9 @@ public class ExtractJob : IProcessJob
             }
 
             // EXTRACT
-            DirectoryNode root = ProcessJob(TempDir, isDbTask);
-            Console.WriteLine($"Deleting Root Directory... Finishing Job {root.Path}");
+            DirectoryNode root = ExecuteJob(TempDir, isDbTask);
+
+            Console.WriteLine($"Finishing Job...Deleting temp dir... {root.Path}");
             if (Directory.Exists(root.Path))
                 Directory.Delete(root.Path);
             else if (File.Exists(root.Path))
@@ -138,7 +139,7 @@ public class ExtractJob : IProcessJob
         }
     }
 
-    private DirectoryNode ProcessJob(string directory, bool isDbTask, DirectoryNode node = default!, bool isHead = true)
+    private DirectoryNode ExecuteJob(string directory, bool isDbTask, DirectoryNode node = default!, bool isHead = true)
     {
         node ??= new DirectoryNode();
 
@@ -212,13 +213,13 @@ public class ExtractJob : IProcessJob
             isHead = true;
             #endregion
 
-            return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(directory, node, isHead, isDbTask);
+            return RecurseLogEvents(directory, node, isHead, isDbTask);
         }
 
         if (node.Previous != null)
-            return ProcessJob(node.Previous.Path, isDbTask, node.Previous, isHead);
+            return ExecuteJob(node.Previous.Path, isDbTask, node.Previous, isHead);
         else if (node.Parent != null)
-            return ProcessJob(node.Parent.Path, isDbTask, node.Parent, isHead);
+            return ExecuteJob(node.Parent.Path, isDbTask, node.Parent, isHead);
         else
             return node;
     }
@@ -230,7 +231,7 @@ public class ExtractJob : IProcessJob
     /// <returns>Returns file name with extension</returns>
     private static string GetFileName(string path) => path.Split("\\").Last();
 
-    private DirectoryNode Unzip_File_Execute_SQL_Task_And_Recurse_Directory(string currentDir, DirectoryNode node, bool isHead, bool isDbTask, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
+    private DirectoryNode RecurseLogEvents(string currentDir, DirectoryNode node, bool isHead, bool isDbTask, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
     {
         if (cleanupNode != null)
         {
@@ -246,7 +247,7 @@ public class ExtractJob : IProcessJob
                 cleanupNode(node);
 
                 if (node.Previous == null)
-                    Unzip_File_Execute_SQL_Task_And_Recurse_Directory(currentDir, node, isHead, isDbTask);
+                    RecurseLogEvents(currentDir, node, isHead, isDbTask);
             }
         }
 
@@ -282,7 +283,7 @@ public class ExtractJob : IProcessJob
                 }
             }
 
-            return ProcessJob(currentDir, isDbTask, node.Inside, isHead);
+            return ExecuteJob(currentDir, isDbTask, node.Inside, isHead);
         }
         else
         {
@@ -350,7 +351,7 @@ public class ExtractJob : IProcessJob
                         }
                     }
 
-                    entities = [];
+                    entities.Clear();
 
                     Console.WriteLine("Changes Saved to SQLite DB! \nYou can use Query Syntax -SQL to query data\nYou can take the local.db file and upload into SQLite db browser or MS Access");
                 }
@@ -361,9 +362,9 @@ public class ExtractJob : IProcessJob
             currentDir = string.Join("\\", parts, 0, parts.Length - 1);
 
             if (node.Previous != null)
-                return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(previousDirectory, node.Previous, isHead, isDbTask, x => Cleanup(ref x));
+                return RecurseLogEvents(previousDirectory, node.Previous, isHead, isDbTask, x => Cleanup(ref x));
             else if (!currentDir.Equals(TempDir) && node.Parent != null)
-                return Unzip_File_Execute_SQL_Task_And_Recurse_Directory(currentDir, node.Parent, isHead, isDbTask, (x) => Cleanup(ref x), true);
+                return RecurseLogEvents(currentDir, node.Parent, isHead, isDbTask, (x) => Cleanup(ref x), true);
             else
                 return node;
         }
