@@ -3,55 +3,55 @@ using AWSS3Zip.Entity.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
-namespace AWSS3Zip.Entity
+namespace AWSS3Zip.Entity;
+
+public class AppDatabase(DbContextOptions<AppDatabase> options) : DbContext(options), IAppDatabase
 {
-    public class AppDatabase(DbContextOptions<AppDatabase> options) : DbContext(options), IAppDatabase
+    public DbSet<IISLogEvent> IISLogEvents { get; set; }
+
+    public string ConnectionString { get; set; }
+
+    public AppDatabase DetachEntities()
     {
-        public DbSet<IISLogEvent> IISLogEvents { get; set; }
+        IEnumerable<EntityEntry> trackedEntities = ChangeTracker.Entries()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Unchanged);
 
-        public string ConnectionString { get; set; }
-
-        public AppDatabase DetachEntities()
+        foreach (EntityEntry? entry in trackedEntities)
         {
-            IEnumerable<EntityEntry> trackedEntities = ChangeTracker.Entries()
-                .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Unchanged);
-
-            foreach (EntityEntry? entry in trackedEntities)
-            {
-                entry.State = EntityState.Detached;
-            }
-
-            ChangeTracker.Clear();
-
-            return this;
+            entry.State = EntityState.Detached;
         }
 
-        public void AttachSaveEntities(List<IISLogEvent> newEntities)
+        ChangeTracker.Clear();
+
+        return this;
+    }
+
+    public void AttachSaveEntities(List<IISLogEvent> newEntities)
+    {
+        int rowCount = int.Parse(IISLogEvents.Max(e => e.Id));
+        foreach (IISLogEvent entity in newEntities)
         {
-            int rowCount = int.Parse(IISLogEvents.Max(e => e.Id));
-            foreach (IISLogEvent entity in newEntities)
+            EntityEntry<IISLogEvent>? existingEntity = ChangeTracker.Entries<IISLogEvent>()
+                .FirstOrDefault(e => e.Entity.Id == entity.Id);
+
+            if (existingEntity != null)
             {
-                EntityEntry<IISLogEvent>? existingEntity = ChangeTracker.Entries<IISLogEvent>()
-                    .FirstOrDefault(e => e.Entity.Id == entity.Id);
+                entity.RowId = ++rowCount;
+                Entry(existingEntity.Entity).CurrentValues.SetValues(entity);
+            }
+            else
+            {
+                IISLogEvents.Attach(entity);
+            }
 
-                if (existingEntity != null)
-                {
-                    entity.RowId = ++rowCount;
-                    Entry(existingEntity.Entity).CurrentValues.SetValues(entity);
-                }
-                else
-                {
-                    IISLogEvents.Attach(entity);
-                }
-
-                try
-                {
-                    SaveChanges();
-                }
-                catch (Exception)
-                {
-                    continue;
-                }
+            try
+            {
+                SaveChanges();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+                throw;
             }
         }
     }

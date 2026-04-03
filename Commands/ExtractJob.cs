@@ -4,7 +4,6 @@ using AWSS3Zip.Entity.Models;
 using AWSS3Zip.Models;
 using AWSS3Zip.Service;
 using Microsoft.EntityFrameworkCore;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace AWSS3Zip.Commands;
@@ -95,24 +94,13 @@ public class ExtractJob : IProcessJob
 
                 if (context.Type == DB.Microsoft)
                 {
-                    const string createTblSql = """
-                        DROP TABLE IF EXISTS [IISLogEvents];
-                        CREATE TABLE [IISLogEvents] (
-                            RowId INT IDENTITY(1,1),
-                            Id NVARCHAR(100) NULL,
-                            MessageType NVARCHAR(100) NULL,
-                            "Owner" NVARCHAR(50) NULL,
-                            LogGroup NVARCHAR(50) NULL,
-                            LogStream NVARCHAR(50) NULL,
-                            SubscriptionFilters NVARCHAR(50) NULL,
-                            "DateTime" DATETIME NULL,
-                            RequestMessage NVARCHAR(MAX) NULL
-                        );
-                    """;
-
                     try
                     {
-                        context.Database.Database.ExecuteSql(FormattableStringFactory.Create(createTblSql));
+                        int result = context.Database.Database.ExecuteSql($"EXEC [dbo].[sp_CreateTbl];");
+                        if (result == -1)
+                            Console.WriteLine("Table IISLogEvents already exists in dst db");
+                        else
+                            Console.WriteLine($"Rows effected by attempted IISLogEvents table creation to output db: {result}");
                     }
                     catch (Exception e)
                     {
@@ -231,7 +219,8 @@ public class ExtractJob : IProcessJob
     /// <returns>Returns file name with extension</returns>
     private static string GetFileName(string path) => path.Split("\\").Last();
 
-    private DirectoryNode RecurseLogEvents(string currentDir, DirectoryNode node, bool isHead, bool isDbTask, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
+    private DirectoryNode RecurseLogEvents(string currentDir, DirectoryNode node, bool isHead, bool isDbTask,
+        Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
     {
         if (cleanupNode != null)
         {
@@ -344,16 +333,18 @@ public class ExtractJob : IProcessJob
                             context.IISLogEvents.AddRange(entities);
                             context.SaveChanges();
                         }
-                        catch (Exception ex)
+                        catch (Exception e)
                         {
-                            Console.WriteLine($"Caught Error:\n{ex.Message}\n Retrying by Detatching Entities and saving individually modified...");
+                            Console.WriteLine($"Caught Error:\n{e.Message}" +
+                                "\n Retrying by Detatching Entities and saving individually modified...");
                             context.AttachSaveEntities(entities);
                         }
                     }
 
                     entities.Clear();
 
-                    Console.WriteLine("Changes Saved to SQLite DB! \nYou can use Query Syntax -SQL to query data\nYou can take the local.db file and upload into SQLite db browser or MS Access");
+                    Console.WriteLine("Changes Saved to SQLite DB! \nYou can use Query Syntax -SQL to query data" +
+                        "\nYou can take the local.db file and upload into SQLite db browser or MS Access");
                 }
             }
 
