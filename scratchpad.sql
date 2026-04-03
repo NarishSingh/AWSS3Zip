@@ -1,5 +1,5 @@
 -- SELECT ALL
-SELECT TOP 100000
+SELECT
 	* 
 FROM [dbo].[IISLogEvents];
 GO
@@ -21,7 +21,7 @@ WHERE RequestMessage LIKE '%Geoservice/Geoservice.svc%'
 GO
 -- 
 
--- ! FIXME
+-- CALL COUNTS BY KEY
 SELECT
 	*
 FROM (

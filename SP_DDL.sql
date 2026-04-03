@@ -21,6 +21,7 @@ GO
 --
 
 -- [dbo].[GetServerRequestMessage]
+-- reverse engineering this from db alter...
 CREATE PROCEDURE [dbo].[GetServerRequestMessage]
 	@inDate Date = NULL,
 	@inMonth INT = NULL,
@@ -57,6 +58,7 @@ GO
 --
 
 -- [dbo].[GetUserHourlyUsageReport]
+-- reverse engineering this from db alter...
 CREATE PROCEDURE [dbo].[GetUserHourlyUsageReport]
 	@inDate Date = NULL,
 	@inMonth INT = NULL,
@@ -64,28 +66,31 @@ CREATE PROCEDURE [dbo].[GetUserHourlyUsageReport]
 	@inUserAccessKey NVARCHAR(20) = NULL
 AS
 BEGIN
+	DECLARE @KeyUrlParam CHAR(4) = 'Key=';
+	DECLARE @KeyLen INT = 16;
+
 	SELECT 
 		CONVERT(DATE, [DateTime]) AS [Date],
 		DATEPART(HOUR, [DateTime]) AS [Hour],
-		SUBSTRING(RequestMessage, CHARINDEX('Key=', RequestMessage)+4, 16) AS UserKey,
+		SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen) AS UserKey,
 		COUNT(*) AS CallCount
 	FROM [dbo].[IISLogEvents] 
 	WHERE 
-		 SUBSTRING(RequestMessage, CHARINDEX('Key=', RequestMessage), 20) LIKE '%key=%'
+		 SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage), 20) LIKE '%key=%'
 			AND SUBSTRING(RequestMessage, CHARINDEX(',+', RequestMessage), 15) LIKE '%,+%'
-			AND SUBSTRING(RequestMessage, CHARINDEX('Key=', RequestMessage)+4, 16) NOT LIKE '%key %'
+			AND SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen) NOT LIKE '%key %'
 			AND (CONVERT(DATE, [DateTime]) = @inDate 
 				OR @inDate IS NULL) 
 			AND (YEAR([DateTime]) = @inYear 
 				OR @inYear IS NULL)
 			AND (MONTH([DateTime]) = @inMonth 
 				OR @inMonth IS NULL) 
-			AND (SUBSTRING(RequestMessage, CHARINDEX('Key=', RequestMessage)+4, 16) = @inUserAccessKey 
+			AND (SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen) = @inUserAccessKey 
 				OR @inUserAccessKey IS NULL)
 	GROUP BY 
 		CONVERT(DATE, [DateTime]),
 		DATEPART(HOUR, [DateTime]),
-		SUBSTRING(RequestMessage, CHARINDEX('Key=', RequestMessage)+4, 16)
+		SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen)
 	ORDER BY 
 		[Date] DESC, 
 		[Hour] ASC, 

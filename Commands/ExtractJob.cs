@@ -58,12 +58,12 @@ public class ExtractJob : IProcessJob
         #endregion
 
         if (iPath != -1)
-            ExtractZipFilesAndProcess(iPath, isDbTask, iOutput);
+            PrepareAndExecute(iPath, isDbTask, iOutput);
         else
             Console.WriteLine("No execution command found!");
     }
 
-    private void ExtractZipFilesAndProcess(int iPath, bool isDbTask, int iOutput = -1)
+    private void PrepareAndExecute(int iPath, bool isDbTask, int iOutput = -1)
     {
         try
         {
@@ -85,28 +85,22 @@ public class ExtractJob : IProcessJob
             Console.WriteLine("\n Creating Database and building directory structure...");
 
             // DEFINE TABLE
-            if (isDbTask)
+            using DatabaseContext? context = new();
+
+            context.Build(ConnectionString).Database.EnsureCreated();
+            context.Database.SaveChanges();
+
+            try
             {
-                using DatabaseContext? context = new();
-
-                context.Build(ConnectionString).Database.EnsureCreated();
-                context.Database.SaveChanges();
-
-                if (context.Type == DB.Microsoft)
-                {
-                    try
-                    {
-                        int result = context.Database.Database.ExecuteSql($"EXEC [dbo].[sp_CreateTbl];");
-                        if (result == -1)
-                            Console.WriteLine("Table IISLogEvents already exists in destination db");
-                        else
-                            Console.WriteLine($"Rows effected by attempted IISLogEvents table creation to output db: {result}");
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine($"SQL Query Failed - {e.Message}\n\n");
-                    }
-                }
+                int result = context.Database.Database.ExecuteSql($"EXEC [dbo].[sp_CreateTbl];");
+                if (result == -1)
+                    Console.WriteLine("Table IISLogEvents already exists in destination db");
+                else
+                    Console.WriteLine($"Rows effected by attempted IISLogEvents table creation to output db: {result}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"SQL Query Failed - {e.Message}\n\n");
             }
 
             // EXTRACT
@@ -211,13 +205,6 @@ public class ExtractJob : IProcessJob
         else
             return node;
     }
-
-    /// <summary>
-    /// Extract file name from its full path
-    /// </summary>
-    /// <param name="path">Full path for file</param>
-    /// <returns>Returns file name with extension</returns>
-    private static string GetFileName(string path) => path.Split("\\").Last();
 
     private DirectoryNode RecurseLogEvents(string currentDir, DirectoryNode node, bool isHead, bool isDbTask,
         Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
@@ -335,7 +322,7 @@ public class ExtractJob : IProcessJob
                         catch (Exception e)
                         {
                             Console.WriteLine($"Caught Error:\n{e.Message}" +
-                                "\n Retrying by Detatching Entities and saving individually modified...");
+                                "\n Retrying by detatching Entities and saving individually modified...");
                             context.AttachSaveEntities(entities);
                         }
                     }
@@ -358,6 +345,8 @@ public class ExtractJob : IProcessJob
                 return node;
         }
     }
+
+    private static string GetFileName(string path) => path.Split("\\").Last();
 
     private static bool Cleanup(ref DirectoryNode node, bool isParent = false)
     {
