@@ -84,7 +84,7 @@ public class ExtractJob : IProcessJob
 
             Console.WriteLine("\n Creating Database and building directory structure...");
 
-            // DEFINE TABLE IF OUTPUT TO DB
+            // DEFINE TABLE
             if (isDbTask)
             {
                 using DatabaseContext? context = new();
@@ -98,7 +98,7 @@ public class ExtractJob : IProcessJob
                     {
                         int result = context.Database.Database.ExecuteSql($"EXEC [dbo].[sp_CreateTbl];");
                         if (result == -1)
-                            Console.WriteLine("Table IISLogEvents already exists in dst db");
+                            Console.WriteLine("Table IISLogEvents already exists in destination db");
                         else
                             Console.WriteLine($"Rows effected by attempted IISLogEvents table creation to output db: {result}");
                     }
@@ -301,7 +301,6 @@ public class ExtractJob : IProcessJob
                 json = json.Insert(0, "[") + "]";
                 json = json.Replace("}{", "},{");
 
-
                 /**
                  * 1 file => List of `IISLog`
                  * -> Each log record contains a list of `LogEvent` which will contain the request
@@ -343,8 +342,7 @@ public class ExtractJob : IProcessJob
 
                     entities.Clear();
 
-                    Console.WriteLine("Changes Saved to SQLite DB! \nYou can use Query Syntax -SQL to query data" +
-                        "\nYou can take the local.db file and upload into SQLite db browser or MS Access");
+                    Console.WriteLine("Changes Saved to destination DB!");
                 }
             }
 
