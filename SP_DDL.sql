@@ -1,3 +1,6 @@
+USE GeoSupportDev;
+GO
+
 -- SP | CREATE OUTPUT TABLE
 CREATE PROCEDURE [dbo].[sp_CreateTbl]
 AS
@@ -38,19 +41,19 @@ BEGIN
 		SUBSTRING(RequestMessage, CHARINDEX('Key=', RequestMessage)+4, 16) AS UserKey,
 		SUBSTRING(RequestMessage, CHARINDEX('Function_', RequestMessage), 12) AS FunctionCall,
 		RequestMessage
-	FROM [dbo].[IISLogEvents] 
-	WHERE 
+	FROM [dbo].[IISLogEvents]
+	WHERE
 		SUBSTRING(RequestMessage, CHARINDEX(',+', RequestMessage), 15) LIKE '%,+%'
-			AND SUBSTRING(RequestMessage, CHARINDEX('200 0 0 ', RequestMessage), 20) LIKE '%200 0 0%' 
-			AND (RequestMessage LIKE '%200 0 0 '+@inServerMessage+'%' 
-				OR @inServerMessage IS NULL) 
-			AND (CONVERT(DATE, [DateTime]) = @inDate 
-				OR @inDate IS NULL) 
-			AND (YEAR([DateTime]) = @inYear 
-				OR @inYear IS NULL) 
-			AND (MONTH([DateTime]) = @inMonth 
+			AND SUBSTRING(RequestMessage, CHARINDEX('200 0 0 ', RequestMessage), 20) LIKE '%200 0 0%'
+			AND (RequestMessage LIKE '%200 0 0 '+@inServerMessage+'%'
+				OR @inServerMessage IS NULL)
+			AND (CONVERT(DATE, [DateTime]) = @inDate
+				OR @inDate IS NULL)
+			AND (YEAR([DateTime]) = @inYear
+				OR @inYear IS NULL)
+			AND (MONTH([DateTime]) = @inMonth
 				OR @inMonth IS NULL)
-			AND	(SUBSTRING(RequestMessage, CHARINDEX('', RequestMessage)+20, 15) LIKE '%'+@inStartServerIP+'%' 
+			AND	(SUBSTRING(RequestMessage, CHARINDEX('', RequestMessage)+20, 15) LIKE '%'+@inStartServerIP+'%'
 				OR @inStartServerIP IS NULL)
 	ORDER BY [DateTime] DESC;
 END
@@ -69,31 +72,31 @@ BEGIN
 	DECLARE @KeyUrlParam CHAR(4) = 'Key=';
 	DECLARE @KeyLen INT = 16;
 
-	SELECT 
+	SELECT
 		CONVERT(DATE, [DateTime]) AS [Date],
 		DATEPART(HOUR, [DateTime]) AS [Hour],
 		SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen) AS UserKey,
 		COUNT(*) AS CallCount
-	FROM [dbo].[IISLogEvents] 
-	WHERE 
+	FROM [dbo].[IISLogEvents]
+	WHERE
 		 SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage), 20) LIKE '%key=%'
 			AND SUBSTRING(RequestMessage, CHARINDEX(',+', RequestMessage), 15) LIKE '%,+%'
 			AND SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen) NOT LIKE '%key %'
-			AND (CONVERT(DATE, [DateTime]) = @inDate 
-				OR @inDate IS NULL) 
-			AND (YEAR([DateTime]) = @inYear 
+			AND (CONVERT(DATE, [DateTime]) = @inDate
+				OR @inDate IS NULL)
+			AND (YEAR([DateTime]) = @inYear
 				OR @inYear IS NULL)
-			AND (MONTH([DateTime]) = @inMonth 
-				OR @inMonth IS NULL) 
-			AND (SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen) = @inUserAccessKey 
+			AND (MONTH([DateTime]) = @inMonth
+				OR @inMonth IS NULL)
+			AND (SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen) = @inUserAccessKey
 				OR @inUserAccessKey IS NULL)
-	GROUP BY 
+	GROUP BY
 		CONVERT(DATE, [DateTime]),
 		DATEPART(HOUR, [DateTime]),
 		SUBSTRING(RequestMessage, CHARINDEX(@KeyUrlParam, RequestMessage)+4, @KeyLen)
-	ORDER BY 
-		[Date] DESC, 
-		[Hour] ASC, 
+	ORDER BY
+		[Date] DESC,
+		[Hour] ASC,
 		CallCount DESC;
 END
 GO

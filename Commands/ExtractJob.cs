@@ -295,7 +295,7 @@ public class ExtractJob : IProcessJob
                 List<IISLogEvent> entities = [];
                 foreach (IISLog log in JsonSerializer.Deserialize<List<IISLog>>(json))
                 {
-                    // flatten the record to create entity
+                    // flatten the record to create output entity
                     entities.AddRange(log.logEvents.Select(s => new IISLogEvent
                     {
                         Id = s.id,
@@ -310,7 +310,7 @@ public class ExtractJob : IProcessJob
                 }
                 #endregion
 
-                if (isDbTask)
+                if (isDbTask) // FIXME should remove...just let it go to db
                 {
                     using (AppDatabase? context = new DatabaseContext().Build(ConnectionString))
                     {
@@ -321,8 +321,7 @@ public class ExtractJob : IProcessJob
                         }
                         catch (Exception e)
                         {
-                            Console.WriteLine($"Caught Error:\n{e.Message}" +
-                                "\n Retrying by detatching Entities and saving individually modified...");
+                            Console.WriteLine($"Caught Error:\n{e.Message}\n Retrying by detatching Entities and saving individually modified...");
                             context.AttachSaveEntities(entities);
                         }
                     }
@@ -340,7 +339,7 @@ public class ExtractJob : IProcessJob
             if (node.Previous != null)
                 return RecurseLogEvents(previousDirectory, node.Previous, isHead, isDbTask, x => Cleanup(ref x));
             else if (!currentDir.Equals(TempDir) && node.Parent != null)
-                return RecurseLogEvents(currentDir, node.Parent, isHead, isDbTask, (x) => Cleanup(ref x), true);
+                return RecurseLogEvents(currentDir, node.Parent, isHead, isDbTask, x => Cleanup(ref x), true);
             else
                 return node;
         }
