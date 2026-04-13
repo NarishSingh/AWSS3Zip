@@ -89,14 +89,13 @@ public class ExtractJob : IProcessJob
 
             context.Build(ConnectionString).Database.EnsureCreated();
             context.Database.SaveChanges();
-
             try
             {
                 int result = context.Database.Database.ExecuteSql($"EXEC [dbo].[sp_CreateTbl];");
                 if (result == -1)
-                    Console.WriteLine("Table IISLogEvents already exists in destination db");
-                else
-                    Console.WriteLine($"Rows effected by attempted IISLogEvents table creation to output db: {result}");
+                    Console.WriteLine("* Table IISLogEvents already exists in destination db *");
+
+                Console.WriteLine($"Rows effected by attempted IISLogEvents table creation to output db: {result}");
             }
             catch (Exception e)
             {
@@ -106,18 +105,20 @@ public class ExtractJob : IProcessJob
             // EXTRACT
             DirectoryNode root = ExecuteJob(TempDir, isDbTask);
 
+            // CLEANUP TEMP
             Console.WriteLine($"Finishing Job...Deleting temp dir... {root.Path}");
             if (Directory.Exists(root.Path))
                 Directory.Delete(root.Path);
             else if (File.Exists(root.Path))
                 File.Delete(root.Path);
 
+            // IF SQLITE => MOVE TO OUTPUT DIR
             if (outputDirectory != null)
                 File.Move($"{AppContext.BaseDirectory}localdb", outputDirectory);
         }
         catch (Exception e)
         {
-            Console.WriteLine($"zip path file not found error!\nDetails:\n\t{e.Message}");
+            Console.WriteLine($"Job Error Details:\n\t{e.Message}");
         }
     }
 
@@ -206,8 +207,7 @@ public class ExtractJob : IProcessJob
             return node;
     }
 
-    private DirectoryNode RecurseLogEvents(string currentDir, DirectoryNode node, bool isHead, bool isDbTask,
-        Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
+    private DirectoryNode RecurseLogEvents(string currentDir, DirectoryNode node, bool isHead, bool isDbTask, Func<DirectoryNode, bool> cleanupNode = null, bool isParent = false)
     {
         if (cleanupNode != null)
         {
@@ -266,7 +266,7 @@ public class ExtractJob : IProcessJob
             // Extract if current item is a zip
             if (node.Type.Equals(FileType.ZIP))
             {
-                Console.WriteLine("Unzipping contents of inner zip files...May take a while... ");
+                Console.WriteLine("Unzipping contents of inner zip files...May take a while...");
                 string extractCmdArgs = $@"x {currentDir} -o{previousDirectory}";
                 Processor.InvokeProcess(_zipper, extractCmdArgs);
 
@@ -310,26 +310,22 @@ public class ExtractJob : IProcessJob
                 }
                 #endregion
 
-                if (isDbTask) // FIXME should remove...just let it go to db
+                using AppDatabase? context = new DatabaseContext().Build(ConnectionString);
+
+                try
                 {
-                    using (AppDatabase? context = new DatabaseContext().Build(ConnectionString))
-                    {
-                        try
-                        {
-                            context.IISLogEvents.AddRange(entities);
-                            context.SaveChanges();
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine($"Caught Error:\n{e.Message}\n Retrying by detatching Entities and saving individually modified...");
-                            context.AttachSaveEntities(entities);
-                        }
-                    }
-
-                    entities.Clear();
-
-                    Console.WriteLine("Changes Saved to destination DB!");
+                    context.IISLogEvents.AddRange(entities);
+                    context.SaveChanges();
                 }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"DB Persistence Error:\n{e.Message}\n Retrying by detatching Entities and saving individually modified...");
+                    context.AttachSaveEntities(entities);
+                }
+
+                entities.Clear();
+
+                Console.WriteLine("Changes Saved to destination DB!");
             }
 
             node.Inside = null;
