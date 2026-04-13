@@ -1,6 +1,3 @@
-USE GeoSupportDev;
-GO
-
 -- SELECT ALL
 SELECT
 	*
@@ -8,7 +5,7 @@ FROM [dbo].[IISLogEvents];
 GO
 --
 
--- SELECT USER KEY BY `python-requests/` user agent
+-- COUNT USER KEY BY `python-requests/` user agent
 SELECT
 	SUBSTRING(RequestMessage, CHARINDEX('&Key=', RequestMessage), (16 + LEN('&Key='))) AS UserKey,
 	COUNT(*) AS TotalRequests
@@ -16,6 +13,14 @@ FROM [dbo].[IISLogEvents]
 WHERE CHARINDEX('python-requests/', RequestMessage) > 0
 GROUP BY 
 	SUBSTRING(RequestMessage, CHARINDEX('&Key=', RequestMessage), (16 + LEN('&Key=')))
+GO
+--
+
+-- COUNT WASTEMAN
+SELECT
+	COUNT(*) AS TotalRequests
+FROM [dbo].[IISLogEvents]
+WHERE CHARINDEX('/geoservice/geoservice.svc/Function_1E zipcode= 80', RequestMessage) > 0;
 GO
 --
 
@@ -37,6 +42,7 @@ GO
 -- 
 
 -- CALL COUNTS BY KEY
+-- FIXME
 SELECT
 	*
 FROM (
@@ -53,10 +59,12 @@ ORDER BY CallCount DESC;
 GO
 --
 
+--
 EXEC [dbo].[sp_CreateTbl];
 GO
 --
 
+--
 DROP PROCEDURE [dbo].[sp_CreateTbl];
 GO
 --

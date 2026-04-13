@@ -1,6 +1,3 @@
-USE GeoSupportDev;
-GO
-
 -- SP | CREATE OUTPUT TABLE
 CREATE PROCEDURE [dbo].[sp_CreateTbl]
 AS
