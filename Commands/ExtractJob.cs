@@ -72,14 +72,14 @@ public class ExtractJob : IProcessJob
 
             string extractCmdArgs = $@"x {Parameters[iPath + 1]} -o{TempDir}";
 
+            // FIXME test this without the skip-if-not-empty guard
             if (Directory.GetFileSystemEntries(TempDir).Length == 0)
             {
                 Processor.InvokeProcess(_zipper, extractCmdArgs);
                 Console.WriteLine($"\n Files Extracted: {TempDir}");
             }
-            else
             {
-                Console.WriteLine("Temp dir is not empty. Skipping extract...");
+                Console.WriteLine("* Temp dir is not empty. Skipping extract *");
             }
 
             Console.WriteLine("\n Creating Database and building directory structure...");

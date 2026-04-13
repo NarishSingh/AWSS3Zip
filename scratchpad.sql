@@ -8,14 +8,33 @@ FROM [dbo].[IISLogEvents];
 GO
 --
 
+-- SELECT USER KEY BY `python-requests/` user agent
+WITH Key_CTE (RowId, [DateTime], UserKey)
+AS
+(
+	SELECT
+		RowId,
+		[DateTime],
+		SUBSTRING(RequestMessage, CHARINDEX('&Key=', RequestMessage), 16) AS UserKey
+	FROM [dbo].[IISLogEvents]
+	WHERE CHARINDEX('python-requests/', RequestMessage) > 0
+)
+SELECT
+	*
+FROM Key_CTE
+GROUP BY UserKey;
+GO
+--
+
 -- KEY STATS - see key and request record
+-- FIXME
 SELECT 
 	*
 FROM (
 	SELECT
 		[DateTime],
 		RequestMessage,
-		SUBSTRING(RequestMessage, CHARINDEX(RequestMessage, 'Key='), 16)  AS UserKey,
+		SUBSTRING(RequestMessage, CHARINDEX(RequestMessage, 'Key='), 16) AS UserKey,
 		SUBSTRING(RequestMessage, CHARINDEX(RequestMessage, 'GET '), LEN(SUBSTRING(RequestMessage, 1, CHARINDEX(RequestMessage, ' 80')))) AS HttpRequest
 	FROM [dbo].[IISLogEvents]
 ) AS KeysRequests
