@@ -18,6 +18,8 @@ public class DatabaseContext : IDatabaseContext<AppDatabase>, IDisposable
         {
             DbContextOptionsBuilder<AppDatabase> optionsBuilder = new();
 
+            // FIXME OUTPUTTING BOTH
+            /*
             if (string.IsNullOrEmpty(connection))
             {
                 optionsBuilder.EnableSensitiveDataLogging().UseSqlite(_local);
@@ -28,6 +30,11 @@ public class DatabaseContext : IDatabaseContext<AppDatabase>, IDisposable
                 optionsBuilder.EnableSensitiveDataLogging().UseSqlServer(connection);
                 Type = DB.Microsoft;
             }
+            */
+
+            // persist to sqlite and server
+            optionsBuilder.EnableSensitiveDataLogging().UseSqlite(_local);
+            //optionsBuilder.EnableSensitiveDataLogging().UseSqlServer(connection);
 
             Database = new AppDatabase(optionsBuilder.Options);
         }

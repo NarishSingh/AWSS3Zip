@@ -67,24 +67,29 @@ public class ExtractJob : IProcessJob
     {
         try
         {
-            TempDir = $"{AppContext.BaseDirectory}output";
+            TempDir = AppContext.BaseDirectory + "output";
             string? outputDirectory = iOutput != -1 ? Parameters[iOutput + 1] : null;
 
             string extractCmdArgs = $@"x {Parameters[iPath + 1]} -o{TempDir}";
 
-            // FIXME test this without the skip-if-not-empty guard
+            if (!Directory.Exists(TempDir))
+            {
+                Console.WriteLine($"\n Creating temp directory for job at: {TempDir}");
+                Directory.CreateDirectory(TempDir);
+            }
+
             if (Directory.GetFileSystemEntries(TempDir).Length == 0)
             {
                 Processor.InvokeProcess(_zipper, extractCmdArgs);
                 Console.WriteLine($"\n Files Extracted: {TempDir}");
             }
+            else
             {
                 Console.WriteLine("* Temp dir is not empty. Skipping extract *");
             }
 
-            Console.WriteLine("\n Creating Database and building directory structure...");
-
             // DEFINE TABLE
+            Console.WriteLine("\n Creating Database...");
             using DatabaseContext? context = new();
 
             context.Build(ConnectionString).Database.EnsureCreated();
@@ -114,7 +119,7 @@ public class ExtractJob : IProcessJob
 
             // IF SQLITE => MOVE TO OUTPUT DIR
             if (outputDirectory != null)
-                File.Move($"{AppContext.BaseDirectory}localdb", outputDirectory);
+                File.Move($"{AppContext.BaseDirectory}localdb", outputDirectory); // FIXME not working...
         }
         catch (Exception e)
         {

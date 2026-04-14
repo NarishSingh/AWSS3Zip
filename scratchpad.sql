@@ -1,3 +1,6 @@
+USE GeoSupportDev;
+GO
+
 -- SELECT ALL
 SELECT
 	*
@@ -12,11 +15,22 @@ SELECT
 FROM [dbo].[IISLogEvents]
 WHERE CHARINDEX('python-requests/', RequestMessage) > 0
 GROUP BY 
-	SUBSTRING(RequestMessage, CHARINDEX('&Key=', RequestMessage), (16 + LEN('&Key=')))
+	SUBSTRING(RequestMessage, CHARINDEX('&Key=', RequestMessage), (16 + LEN('&Key=')));
 GO
 --
 
--- COUNT WASTEMAN
+-- COUNT USER KEY IN GENERAL
+SELECT
+	SUBSTRING(RequestMessage, CHARINDEX('&Key=', RequestMessage), (16 + LEN('&Key='))) AS UserKey,
+	COUNT(*) AS TotalRequests
+FROM [dbo].[IISLogEvents]
+WHERE CHARINDEX('&Key=', RequestMessage) > 0
+GROUP BY 
+	SUBSTRING(RequestMessage, CHARINDEX('&Key=', RequestMessage), (16 + LEN('&Key=')));
+GO
+--
+
+--
 SELECT
 	COUNT(*) AS TotalRequests
 FROM [dbo].[IISLogEvents]
